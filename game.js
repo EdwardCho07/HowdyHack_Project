@@ -1,7 +1,7 @@
 const config = {
   type: Phaser.AUTO,
-  width: 800,
-  height: 400,
+  width: window.innerWidth,
+  height: window.innerHeight,
   backgroundColor: '#87ceeb',
   physics: {
     default: 'arcade',
@@ -17,36 +17,43 @@ const config = {
   }
 };
 
-const game = new Phaser.Game(config);
+game = new Phaser.Game(config);
 
 let player;
 let platforms;
 let input;
 
 function preload() {
-  this.load.image('player', 'Skateboard_idle.png'); // path to your player image
-  this.load.image('ground', 'dirt.png');            // path to your platform image
+  // You can load images here later:
+  this.load.spritesheet('player', 'skate_idle.png', {frameWidth: 300, frameHeight: 300});
+  this.load.image('ground', 'grass.png');
 }
 
 function create() {
   // Platforms
   platforms = this.physics.add.staticGroup();
-  platforms.create(400, 390, 'ground').setScale(2).refreshBody();
-  platforms.create(300, 300, 'ground').refreshBody();
-  platforms.create(550, 240, 'ground').refreshBody();
-  platforms.create()
+  platforms.create(400, 390, 'ground')
+           .setScale(2)
+           .refreshBody()
+           .setSize(800, 20)
+           .setVisible(true); // hide if you like
 
-  //floor
-  const floor = this.add.rectangle(400, 390, 800, 20, 0x654321); // x, y, width, height, color
-  this.physics.add.existing(floor, true); // true = static body
+  platforms.create(300, 300, 'ground').setSize(50, 20).refreshBody();
+  platforms.create(550, 240, 'ground').setSize(70, 20).refreshBody();
 
-  // Player
-  player = this.physics.add.sprite(100, 300, 'player');
-  player.setCollideWorldBounds(true);
+  // Add player (a physics-enabled rectangle)
+  player = this.physics.add.sprite(100,300, 'player');
+  player.setBounce(0.2);
+  player.body.setCollideWorldBounds(true);
   player.setScale(0.5);
-  player.setOrigin(0.5, 0.5); // rotate around center
+  player.setOrigin(0.5, 0.5);
   player.body.setSize(player.width, player.height);
-
+  this.anims.create({
+      key: 'idle',
+      frames: this.anims.generateFrameNumbers('player', { start: 0, end: 1 }),
+      frameRate: 1,
+      repeat: -1
+  });
   // Collide player with platforms
   this.physics.add.collider(player, platforms);
   this.physics.add.collider(player, floor); 
@@ -84,6 +91,8 @@ function update() {
   // Jump
   if (input.space.isDown && onGround) {
     player.body.setVelocityY(jump);
+  } else if(input.up.isDown){
+    player.body.setVelocityY(-200);
   }
 
   // Tilt while moving on ground
