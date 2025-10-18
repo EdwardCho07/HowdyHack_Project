@@ -4,68 +4,83 @@ const config = {
   height: window.innerHeight,
   backgroundColor: '#87ceeb',
   physics: {
-    default: 'arcade',
-    arcade: {
-      gravity: { y: 500 },
-      debug: false
+    default: 'matter',
+    matter: {
+      gravity: { y: 1 },
+      debug: true
     }
   },
-  scene: {
-    preload,
-    create,
-    update
-  }
+  scene: { preload, create, update }
 };
 
-game = new Phaser.Game(config);
-
-let player;
-let platforms;
-let input;
+let game = new Phaser.Game(config);
+let player, input;
+let onGround = false;
 
 function preload() {
-  // You can load images here later:
-  this.load.spritesheet('player', 'skate_idle.png', {frameWidth: 300, frameHeight: 300});
+  this.load.spritesheet('player', 'skate_idle.png', { frameWidth: 300, frameHeight: 300 });
   this.load.image('ground', 'grass.png');
+  this.load.image('ramp', 'ramp.png');
 }
 
 function create() {
-  // Platforms
-  platforms = this.physics.add.staticGroup();
-  platforms.create(400, 390, 'ground')
-           .setScale(2)
-           .refreshBody()
-           .setSize(800, 20)
-           .setVisible(true); // hide if you like
+  this.matter.world.setBounds(0, 0, 10000, window.innerHeight);
 
-  platforms.create(300, 300, 'ground').setSize(50, 20).refreshBody();
-  platforms.create(550, 240, 'ground').setSize(70, 20).refreshBody();
+  // Ground
+  this.matter.add.rectangle(5000, window.innerHeight - 10, 10000, 20, { isStatic: true });
 
-  const floor = this.add.rectangle(0, window.innerHeight - 10, window.innerWidth * 2, 20, 0x654321); // x, y, width, height, color
-  this.physics.add.existing(floor, true); // true = static body
-
-  // Add player (a physics-enabled rectangle)
-  player = this.physics.add.sprite(10 , window.innerHeight - 100, 'player');
-  player.setBounce(0.2);
-  player.body.setCollideWorldBounds(true);
-  player.setScale(0.5);
-  player.setOrigin(0.5, 0.5);
-  player.body.setSize(player.width, player.height);
-  this.anims.create({
-      key: 'idle',
-      frames: this.anims.generateFrameNumbers('player', { start: 0, end: 1 }),
-      frameRate: 1,
-      repeat: -1
+  // Ramp
+  this.matter.add.rectangle(600, window.innerHeight - 100, 300, 20, {
+    isStatic: true,
+    angle: Phaser.Math.DegToRad(-20)
   });
-  // Collide player with platforms
-  this.physics.add.collider(player, platforms);
-  this.physics.add.collider(player, floor); 
 
-  // Input keys
+  // Player
+  player = this.matter.add.sprite(100, window.innerHeight - 200, 'player');
+  player.setScale(0.5);
+  player.setRectangle(player.displayWidth, player.displayHeight);
+  player.setBounce(0.2);
+  player.setFixedRotation(false);
+  player.setMass(1);
+  player.setFriction(0.01);   
+  player.setFrictionAir(0.02); 
+
+  // Collision detection for ground/ramp contact
+  this.matter.world.on('collisionstart', (event) => {
+    event.pairs.forEach(pair => {
+      if (pair.bodyA === player.body || pair.bodyB === player.body) {
+        const collision = pair.collision;
+        const normalY = collision.normal.y;
+
+        // Check both directions since the normal may flip depending on order
+        if (Math.abs(normalY) > 0.5) {
+          const playerIsBodyA = pair.bodyA === player.body;
+          const isSurfaceBelow = playerIsBodyA ? (normalY < 0) : (normalY > 0);
+
+          if (isSurfaceBelow) {
+            onGround = true;
+          }
+        }
+      }
+    });
+  });
+
+  this.matter.world.on('collisionend', (event) => {
+    event.pairs.forEach(pair => {
+      if (pair.bodyA === player.body || pair.bodyB === player.body) {
+        onGround = false;
+      }
+    });
+  });
+
+  // Camera
+  this.cameras.main.startFollow(player, true, 0.1, 0.1);
+  this.cameras.main.setBounds(0, 0, 10000, window.innerHeight);
+
+  // Input
   input = this.input.keyboard.addKeys({
     up: Phaser.Input.Keyboard.KeyCodes.W,
     left: Phaser.Input.Keyboard.KeyCodes.A,
-    down: Phaser.Input.Keyboard.KeyCodes.S,
     right: Phaser.Input.Keyboard.KeyCodes.D,
     space: Phaser.Input.Keyboard.KeyCodes.SPACE,
     rotateLeft: Phaser.Input.Keyboard.KeyCodes.LEFT,
@@ -74,47 +89,32 @@ function create() {
 }
 
 function update() {
-  const accel = 250;       // horizontal acceleration
-  const drag = 200;        // friction
-  const maxSpeed = 300;
-  const jump = -350;
-  const rotationAccel = 0.003; // how fast rotation accelerates
-  const rotationDrag = 0.99;  // slows rotation per frame
-  const tiltAmount = 0.1;     
-  const onGround = player.body.touching.down;
+  const moveForce = 0.002;
+  const jumpForce = 0.025;
+  const rotateForce = 0.006;
 
-  // Initialize angularVelocity if not exists
-  if (player.body.angularVelocity === undefined) player.body.angularVelocity = 0;
-
-  // Apply friction
-  player.body.setDragX(drag);
-  player.body.setMaxVelocity(maxSpeed, 600);
-
-  // Horizontal movement (A/D keys)
-  if (input.left.isDown) 
-    player.body.setAccelerationX(-accel);
-  else if (input.right.isDown) 
-    player.body.setAccelerationX(accel);
-  else 
-    player.body.setAccelerationX(0);
-
-  // Jump
-  if (input.space.isDown && onGround) 
-    player.body.setVelocityY(jump);
-
-  // Tilt while moving on ground
-  if (onGround) {
-    const targetTilt = input.left.isDown ? -tiltAmount : input.right.isDown ? tiltAmount : 0;
-    player.rotation = Phaser.Math.Linear(player.rotation, targetTilt, 0.1);
-  } else {
-    // Rotational momentum in air
-    if (input.rotateLeft.isDown) player.body.angularVelocity -= rotationAccel;
-    if (input.rotateRight.isDown) player.body.angularVelocity += rotationAccel;
-
-    // Apply angular velocity to rotation
-    player.rotation += player.body.angularVelocity;
-
-    // Apply drag to gradually slow down rotation
-    player.body.angularVelocity *= rotationDrag;
+  // Horizontal movement
+  if (input.left.isDown) {
+    player.applyForce({ x: -moveForce, y: 0 });
+  } else if (input.right.isDown) {
+    player.applyForce({ x: moveForce, y: 0 });
   }
+
+  // Jump (only when touching ground or ramp)
+  if (Phaser.Input.Keyboard.JustDown(input.space) && onGround) {
+    player.applyForce({ x: 0, y: -jumpForce });
+  }
+
+  // Rotation control
+  if (input.rotateLeft.isDown && onGround) {
+    player.setAngularVelocity(player.body.angularVelocity - rotateForce);
+  }
+  if (input.rotateRight.isDown && onGround) {
+    player.setAngularVelocity(player.body.angularVelocity + rotateForce);
+  }
+
+  const maxSpeed = onGround ? 5 : 3; // lower max in air
+  if (player.body.velocity.x > maxSpeed) player.setVelocityX(maxSpeed);
+  if (player.body.velocity.x < -maxSpeed) player.setVelocityX(-maxSpeed);
+
 }
