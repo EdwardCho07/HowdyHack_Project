@@ -20,55 +20,79 @@ const config = {
 const game = new Phaser.Game(config);
 
 let player;
-let cursors;
 let platforms;
+let input;
 
 function preload() {
-  // You can load images here later:
-  // this.load.image('player', 'player.png');
-  // this.load.image('platform', 'platform.png');
+  this.load.image('player', 'Skateboard_idle.png'); // path to your player image
+  this.load.image('ground', 'dirt.png');            // path to your platform image
 }
 
 function create() {
-  // Add static platforms (they don’t move)
+  // Platforms
   platforms = this.physics.add.staticGroup();
-  platforms.create(400, 390, 'ground')
-           .setScale(2)
-           .refreshBody()
-           .setSize(800, 20)
-           .setVisible(false); // hide if you like
+  platforms.create(400, 390, 'ground').setScale(2).refreshBody();
+  platforms.create(300, 300, 'ground').refreshBody();
+  platforms.create(550, 240, 'ground').refreshBody();
+  platforms.create()
 
-  platforms.create(300, 300, 'ground').setSize(120, 20).refreshBody();
-  platforms.create(550, 240, 'ground').setSize(100, 20).refreshBody();
+  //floor
+  const floor = this.add.rectangle(400, 390, 800, 20, 0x654321); // x, y, width, height, color
+  this.physics.add.existing(floor, true); // true = static body
 
-  // Add player (a physics-enabled rectangle)
-  player = this.add.rectangle(100, 300, 40, 40, 0xff0000);
-  this.physics.add.existing(player);
-  player.body.setCollideWorldBounds(true);
+  // Player
+  player = this.physics.add.sprite(100, 300, 'player');
+  player.setCollideWorldBounds(true);
+  player.setScale(0.5);
+  player.setOrigin(0.5, 0.5); // rotate around center
+  player.body.setSize(player.width, player.height);
 
   // Collide player with platforms
   this.physics.add.collider(player, platforms);
+  this.physics.add.collider(player, floor); 
 
-  // Input
-  cursors = this.input.keyboard.createCursorKeys();
+  // Input keys
+  input = this.input.keyboard.addKeys({
+    up: Phaser.Input.Keyboard.KeyCodes.W,
+    left: Phaser.Input.Keyboard.KeyCodes.A,
+    down: Phaser.Input.Keyboard.KeyCodes.S,
+    right: Phaser.Input.Keyboard.KeyCodes.D,
+    space: Phaser.Input.Keyboard.KeyCodes.SPACE,
+    rotateLeft: Phaser.Input.Keyboard.KeyCodes.LEFT,
+    rotateRight: Phaser.Input.Keyboard.KeyCodes.RIGHT
+  });
 }
 
 function update() {
-  const speed = 200;
-  const jump = -400;
+  const accel = 250;       // horizontal acceleration
+  const drag = 200;        // friction
+  const maxSpeed = 300;
+  const jump = -200;
+  const rotationSpeed = 0.1; // rotation speed per frame
+  const tiltAmount = 0.2;      // max tilt when moving
   const onGround = player.body.touching.down;
 
-  // Horizontal movement
-  if (cursors.left.isDown) {
-    player.body.setVelocityX(-speed);
-  } else if (cursors.right.isDown) {
-    player.body.setVelocityX(speed);
-  } else {
-    player.body.setVelocityX(0);
-  }
+  // Apply friction
+  player.body.setDragX(drag);
+  player.body.setMaxVelocity(maxSpeed, 600);
+
+  // Horizontal movement (A/D keys)
+  if (input.left.isDown) player.body.setAccelerationX(-accel);
+  else if (input.right.isDown) player.body.setAccelerationX(accel);
+  else player.body.setAccelerationX(0);
 
   // Jump
-  if (cursors.space.isDown && onGround) {
+  if (input.space.isDown && onGround) {
     player.body.setVelocityY(jump);
+  }
+
+  // Tilt while moving on ground
+  if (onGround) {
+    const targetTilt = input.left.isDown ? -tiltAmount : input.right.isDown ? tiltAmount : 0;
+    player.rotation = Phaser.Math.Linear(player.rotation, targetTilt, 0.1);
+  } else {
+    // Spin while in air
+    if (input.rotateLeft.isDown) player.rotation -= rotationSpeed;
+    if (input.rotateRight.isDown) player.rotation += rotationSpeed;
   }
 }
