@@ -1,7 +1,7 @@
 const config = {
   type: Phaser.AUTO,
-  width: 800,
-  height: 400,
+  width: window.innerWidth,
+  height: window.innerHeight,
   backgroundColor: '#87ceeb',
   physics: {
     default: 'arcade',
@@ -17,16 +17,15 @@ const config = {
   }
 };
 
-const game = new Phaser.Game(config);
+game = new Phaser.Game(config);
 
 let player;
-let cursors;
 let platforms;
 
 function preload() {
   // You can load images here later:
-  // this.load.image('player', 'player.png');
-  // this.load.image('platform', 'platform.png');
+  this.load.spritesheet('player', 'skate_idle.png', {frameWidth: 300, frameHeight: 300});
+  this.load.image('ground', 'grass.png');
 }
 
 function create() {
@@ -36,21 +35,33 @@ function create() {
            .setScale(2)
            .refreshBody()
            .setSize(800, 20)
-           .setVisible(false); // hide if you like
+           .setVisible(true); // hide if you like
 
-  platforms.create(300, 300, 'ground').setSize(120, 20).refreshBody();
-  platforms.create(550, 240, 'ground').setSize(100, 20).refreshBody();
+  platforms.create(300, 300, 'ground').setSize(50, 20).refreshBody();
+  platforms.create(550, 240, 'ground').setSize(70, 20).refreshBody();
 
   // Add player (a physics-enabled rectangle)
-  player = this.add.rectangle(100, 300, 40, 40, 0xff0000);
-  this.physics.add.existing(player);
+  player = this.physics.add.sprite(100,300, 'player');
+  player.setBounce(0.2);
   player.body.setCollideWorldBounds(true);
-
+  player.setScale(1.0);
+  this.anims.create({
+      key: 'idle',
+      frames: this.anims.generateFrameNumbers('player', { start: 0, end: 1 }),
+      frameRate: 1,
+      repeat: -1
+  });
   // Collide player with platforms
   this.physics.add.collider(player, platforms);
 
   // Input
-  cursors = this.input.keyboard.createCursorKeys();
+  input = this.input.keyboard.addKeys({
+    up: Phaser.Input.Keyboard.KeyCodes.W,
+    left: Phaser.Input.Keyboard.KeyCodes.A,
+    down: Phaser.Input.Keyboard.KeyCodes.S,
+    right: Phaser.Input.Keyboard.KeyCodes.D,
+    space: Phaser.Input.Keyboard.KeyCodes.SPACE
+  });
 }
 
 function update() {
@@ -59,16 +70,18 @@ function update() {
   const onGround = player.body.touching.down;
 
   // Horizontal movement
-  if (cursors.left.isDown) {
+  if (input.left.isDown) {
     player.body.setVelocityX(-speed);
-  } else if (cursors.right.isDown) {
+  } else if (input.right.isDown) {
     player.body.setVelocityX(speed);
   } else {
     player.body.setVelocityX(0);
   }
 
   // Jump
-  if (cursors.space.isDown && onGround) {
+  if (input.space.isDown && onGround) {
     player.body.setVelocityY(jump);
+  } else if(input.up.isDown){
+    player.body.setVelocityY(-200);
   }
 }
