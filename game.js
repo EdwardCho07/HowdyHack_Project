@@ -77,10 +77,14 @@ function update() {
   const accel = 250;       // horizontal acceleration
   const drag = 200;        // friction
   const maxSpeed = 300;
-  const jump = -500;
-  const rotationSpeed = 0.1; // rotation speed per frame
-  const tiltAmount = 0.2;      // max tilt when moving
+  const jump = -350;
+  const rotationAccel = 0.003; // how fast rotation accelerates
+  const rotationDrag = 0.99;  // slows rotation per frame
+  const tiltAmount = 0.1;     
   const onGround = player.body.touching.down;
+
+  // Initialize angularVelocity if not exists
+  if (player.body.angularVelocity === undefined) player.body.angularVelocity = 0;
 
   // Apply friction
   player.body.setDragX(drag);
@@ -103,8 +107,14 @@ function update() {
     const targetTilt = input.left.isDown ? -tiltAmount : input.right.isDown ? tiltAmount : 0;
     player.rotation = Phaser.Math.Linear(player.rotation, targetTilt, 0.1);
   } else {
-    // Spin while in air
-    if (input.rotateLeft.isDown) player.rotation -= rotationSpeed;
-    if (input.rotateRight.isDown) player.rotation += rotationSpeed;
+    // Rotational momentum in air
+    if (input.rotateLeft.isDown) player.body.angularVelocity -= rotationAccel;
+    if (input.rotateRight.isDown) player.body.angularVelocity += rotationAccel;
+
+    // Apply angular velocity to rotation
+    player.rotation += player.body.angularVelocity;
+
+    // Apply drag to gradually slow down rotation
+    player.body.angularVelocity *= rotationDrag;
   }
 }
