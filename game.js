@@ -24,25 +24,25 @@ function preload() {
 }
 
 function create() {
-  this.matter.world.setBounds(0, 0, 10000, window.innerHeight);
+  this.matter.world.setBounds(0, 0, 60000, window.innerHeight);
 
   // Ground
   this.matter.add.rectangle(5000, window.innerHeight - 10, 10000, 20, { isStatic: true });
 
   // Ramp
-  this.matter.add.rectangle(600, window.innerHeight - 100, 300, 20, {
+  this.matter.add.rectangle(600, window.innerHeight - 60, 300, 20, {
     isStatic: true,
     angle: Phaser.Math.DegToRad(-20)
   });
 
   // Player
   player = this.matter.add.sprite(100, window.innerHeight - 200, 'player');
-  player.setScale(0.5);
+  player.setScale(2);
   player.setRectangle(player.displayWidth, player.displayHeight);
   player.setBounce(0.2);
   player.setFixedRotation(false);
   player.setMass(1);
-  player.setFriction(0.01);   
+  player.setFriction(0);   
   player.setFrictionAir(0.02); 
 
   // Collision detection for ground/ramp contact
@@ -90,31 +90,23 @@ function create() {
 
 function update() {
   const moveForce = 0.002;
-  const jumpForce = 0.025;
+  const jumpForce = 0.035;
   const rotateForce = 0.006;
 
-  // Horizontal movement
-  if (input.left.isDown) {
-    player.applyForce({ x: -moveForce, y: 0 });
-  } else if (input.right.isDown) {
-    player.applyForce({ x: moveForce, y: 0 });
-  }
+  const maxSpeed = 5
+
+  // Smooth horizontal movement
+  let targetVelX = 0;
+  if (input.left.isDown) targetVelX = -maxSpeed;
+  else if (input.right.isDown) targetVelX = maxSpeed;
+
+  // Interpolate current velocity toward target velocity
+  player.setVelocityX(Phaser.Math.Linear(player.body.velocity.x, targetVelX, 0.1));
 
   // Jump (only when touching ground or ramp)
   if (Phaser.Input.Keyboard.JustDown(input.space) && onGround) {
     player.applyForce({ x: 0, y: -jumpForce });
   }
 
-  // Rotation control
-  if (input.rotateLeft.isDown && onGround) {
-    player.setAngularVelocity(player.body.angularVelocity - rotateForce);
-  }
-  if (input.rotateRight.isDown && onGround) {
-    player.setAngularVelocity(player.body.angularVelocity + rotateForce);
-  }
-
-  const maxSpeed = onGround ? 5 : 3; // lower max in air
-  if (player.body.velocity.x > maxSpeed) player.setVelocityX(maxSpeed);
-  if (player.body.velocity.x < -maxSpeed) player.setVelocityX(-maxSpeed);
-
 }
+
