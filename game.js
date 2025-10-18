@@ -20,7 +20,6 @@ const config = {
 const game = new Phaser.Game(config);
 
 let player;
-let cursors;
 let platforms;
 
 function preload() {
@@ -50,25 +49,41 @@ function create() {
   this.physics.add.collider(player, platforms);
 
   // Input
-  cursors = this.input.keyboard.createCursorKeys();
-}
+  input = this.input.keyboard.addKeys({
+    up: Phaser.Input.Keyboard.KeyCodes.W,
+    left: Phaser.Input.Keyboard.KeyCodes.A,
+    down: Phaser.Input.Keyboard.KeyCodes.S,
+    right: Phaser.Input.Keyboard.KeyCodes.D,
+    space: Phaser.Input.Keyboard.KeyCodes.SPACE
+  });
+
+  }
 
 function update() {
-  const speed = 200;
+  const accel = 250;  // acceleration rate
+  const drag = 200;   // slows player when not pressing
+  const maxSpeed = 300;
   const jump = -400;
   const onGround = player.body.touching.down;
 
+  // Apply drag (friction)
+  player.body.setDragX(drag);
+
+  // Limit max velocity
+  player.body.setMaxVelocity(maxSpeed, 600);
   // Horizontal movement
-  if (cursors.left.isDown) {
-    player.body.setVelocityX(-speed);
-  } else if (cursors.right.isDown) {
-    player.body.setVelocityX(speed);
-  } else {
-    player.body.setVelocityX(0);
+  if (input.left.isDown) {
+    player.body.setAccelerationX(-accel);
+  } 
+  else if (input.right.isDown) {
+    player.body.setAccelerationX(accel);
+  } 
+  else {
+    player.body.setAccelerationX(0);
   }
 
   // Jump
-  if (cursors.space.isDown && onGround) {
+  if (input.space.isDown && onGround) {
     player.body.setVelocityY(jump);
   }
 }
