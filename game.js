@@ -41,6 +41,9 @@ function create() {
   platforms.create(300, 300, 'ground').setSize(50, 20).refreshBody();
   platforms.create(550, 240, 'ground').setSize(70, 20).refreshBody();
 
+  const floor = this.add.rectangle(400, 390, 800, 20, 0x654321); // x, y, width, height, color
+  this.physics.add.existing(floor, true); // true = static body
+
   // Add player (a physics-enabled rectangle)
   player = this.physics.add.sprite(100,300, 'player');
   player.setBounce(0.2);
@@ -84,16 +87,16 @@ function update() {
   player.body.setMaxVelocity(maxSpeed, 600);
 
   // Horizontal movement (A/D keys)
-  if (input.left.isDown) player.body.setAccelerationX(-accel);
-  else if (input.right.isDown) player.body.setAccelerationX(accel);
-  else player.body.setAccelerationX(0);
+  if (input.left.isDown) 
+    player.body.setAccelerationX(-accel);
+  else if (input.right.isDown) 
+    player.body.setAccelerationX(accel);
+  else 
+    player.body.setAccelerationX(0);
 
   // Jump
-  if (input.space.isDown && onGround) {
+  if (input.space.isDown && onGround) 
     player.body.setVelocityY(jump);
-  } else if(input.up.isDown){
-    player.body.setVelocityY(-200);
-  }
 
   // Tilt while moving on ground
   if (onGround) {
