@@ -1,82 +1,74 @@
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-
-const gravity = 0.6;
-const player = {
-  x: 100,
-  y: 300,
-  width: 40,
-  height: 40,
-  vx: 0,
-  vy: 0,
-  grounded: false,
-  speed: 5,
-  jump: -12
+const config = {
+  type: Phaser.AUTO,
+  width: 800,
+  height: 400,
+  backgroundColor: '#87ceeb',
+  physics: {
+    default: 'arcade',
+    arcade: {
+      gravity: { y: 600 },
+      debug: false
+    }
+  },
+  scene: {
+    preload,
+    create,
+    update
+  }
 };
 
-const keys = {};
-const platforms = [
-  { x: 0, y: 360, width: 800, height: 40 }, // ground
-  { x: 300, y: 280, width: 120, height: 20 },
-  { x: 500, y: 220, width: 100, height: 20 }
-];
+const game = new Phaser.Game(config);
 
-document.addEventListener('keydown', e => keys[e.code] = true);
-document.addEventListener('keyup', e => keys[e.code] = false);
+let player;
+let cursors;
+let platforms;
+
+function preload() {
+  // You can load images here later:
+  // this.load.image('player', 'player.png');
+  // this.load.image('platform', 'platform.png');
+}
+
+function create() {
+  // Add static platforms (they don’t move)
+  platforms = this.physics.add.staticGroup();
+  platforms.create(400, 390, 'ground')
+           .setScale(2)
+           .refreshBody()
+           .setSize(800, 20)
+           .setVisible(false); // hide if you like
+
+  platforms.create(300, 300, 'ground').setSize(120, 20).refreshBody();
+  platforms.create(550, 240, 'ground').setSize(100, 20).refreshBody();
+
+  // Add player (a physics-enabled rectangle)
+  player = this.add.rectangle(100, 300, 40, 40, 0xff0000);
+  this.physics.add.existing(player);
+  player.body.setCollideWorldBounds(true);
+
+  // Collide player with platforms
+  this.physics.add.collider(player, platforms);
+
+  // Input
+  cursors = this.input.keyboard.createCursorKeys();
+}
 
 function update() {
-  // Move left/right
-  if (keys['ArrowLeft']) player.vx = -player.speed;
-  else if (keys['ArrowRight']) player.vx = player.speed;
-  else player.vx = 0;
+  const speed = 200;
+  const jump = -400;
+  const onGround = player.body.touching.down;
+
+  // Horizontal movement
+  if (cursors.left.isDown) {
+    player.body.setVelocityX(-speed);
+  } else if (cursors.right.isDown) {
+    player.body.setVelocityX(speed);
+  } else {
+    player.body.setVelocityX(0);
+  }
 
   // Jump
-  if (keys['Space'] && player.grounded) {
-    player.vy = player.jump;
-    player.grounded = false;
-  }
-
-  // Apply gravity
-  player.vy += gravity;
-  player.x += player.vx;
-  player.y += player.vy;
-
-  // Collision detection
-  player.grounded = false;
-  for (let p of platforms) {
-    if (
-      player.x < p.x + p.width &&
-      player.x + player.width > p.x &&
-      player.y < p.y + p.height &&
-      player.y + player.height > p.y
-    ) {
-      // landed on top
-      if (player.vy > 0 && player.y + player.height - player.vy <= p.y) {
-        player.y = p.y - player.height;
-        player.vy = 0;
-        player.grounded = true;
-      }
-    }
+  if (cursors.space.isDown && onGround) {
+    player.body.setVelocityY(jump);
   }
 }
-
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Draw platforms
-  ctx.fillStyle = '#654321';
-  for (let p of platforms)
-    ctx.fillRect(p.x, p.y, p.width, p.height);
-
-  // Draw player
-  ctx.fillStyle = 'red';
-  ctx.fillRect(player.x, player.y, player.width, player.height);
-}
-
-function gameLoop() {
-  update();
-  draw();
-  requestAnimationFrame(gameLoop);
-}
-
-gameLoop();
