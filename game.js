@@ -6,7 +6,7 @@ const config = {
   physics: {
     default: 'arcade',
     arcade: {
-      gravity: { y: 600 },
+      gravity: { y: 500 },
       debug: false
     }
   },
@@ -41,11 +41,11 @@ function create() {
   platforms.create(300, 300, 'ground').setSize(50, 20).refreshBody();
   platforms.create(550, 240, 'ground').setSize(70, 20).refreshBody();
 
-  const floor = this.add.rectangle(400, 390, 800, 20, 0x654321); // x, y, width, height, color
+  const floor = this.add.rectangle(0, window.innerHeight - 10, window.innerWidth * 2, 20, 0x654321); // x, y, width, height, color
   this.physics.add.existing(floor, true); // true = static body
 
   // Add player (a physics-enabled rectangle)
-  player = this.physics.add.sprite(100,300, 'player');
+  player = this.physics.add.sprite(10 , window.innerHeight - 100, 'player');
   player.setBounce(0.2);
   player.body.setCollideWorldBounds(true);
   player.setScale(0.5);
@@ -77,7 +77,7 @@ function update() {
   const accel = 250;       // horizontal acceleration
   const drag = 200;        // friction
   const maxSpeed = 300;
-  const jump = -200;
+  const jump = -500;
   const rotationSpeed = 0.1; // rotation speed per frame
   const tiltAmount = 0.2;      // max tilt when moving
   const onGround = player.body.touching.down;
