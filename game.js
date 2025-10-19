@@ -54,6 +54,8 @@ class GameScene extends Phaser.Scene{
     this.load.spritesheet('ollie_anim', 'Skateboard_Ollie.png', {frameWidth: 300, frameHeight: 300});
     this.load.image('player_air', 'Skateboard_Air.png');
     this.load.image('ramp', 'grass.png');
+    this.load.audio('push', 'skate_push.mp3');
+    //this.load.audio('bg');
   }
 
   createTerrain(scene, worldWidth = 20000) {
@@ -170,7 +172,9 @@ class GameScene extends Phaser.Scene{
     this.matter.world.setBounds(0, 0, 20000, window.innerHeight + 400, true, true, true, false);
     this.createTerrain(this, 20000); 
 
-
+    // Sounds
+    this.moving = this.sound.add('push');
+    
     // Add player (a physics-enabled rectangle)
     this.player = this.matter.add.sprite(100,  window.innerHeight - 300, 'player');
     this.player.setScale(0.5);
@@ -289,17 +293,24 @@ class GameScene extends Phaser.Scene{
       targetVelX = -maxSpeed;
       if(this.onGround){
         this.player.anims.play('left', true);
+        if(!this.moving.isPlaying){
+          this.moving.play();
+        }
       }
     }
     else if (this.keys.right.isDown){
       targetVelX = maxSpeed;
       if(this.onGround){
         this.player.anims.play('right', true);
+        if(!this.moving.isPlaying){
+          this.moving.play();
+        }
       }
     } else {
       if(this.onGround){
         this.player.anims.play('idle', true);
       }
+      this.moving.stop();
     }
 
     if (targetVelX !== 0) {
