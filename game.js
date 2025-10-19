@@ -29,6 +29,36 @@ class HomeScene extends Phaser.Scene {
   }
 }
 
+class EndScene extends Phaser.Scene {
+  constructor() {
+    super('EndScene');
+  }
+  preload() {
+  }
+  create() {
+    const { width, height } = this.scale;
+
+    // Title text
+    this.add.text(width / 2, height / 2 - 100, "You Are Now a Master Skater!", {
+      fontSize: '48px',
+      fill: '#00c3ffff',
+      fontFamily: 'Arial',
+      stroke: '#000000ff',
+      strokeThickness: 15
+    }).setOrigin(0.5);
+
+    // Restart button
+    const startText = this.add.text(width / 2, height / 2 + 50, 'Press SPACE to Restart', {
+      fontSize: '32px',
+      fill: '#fff'
+    }).setOrigin(0.5);
+
+    this.input.keyboard.once('keydown-SPACE', () => {
+      this.scene.start('GameScene'); // switch to the game
+    });
+  }
+}
+
 class GameScene extends Phaser.Scene{
   constructor(){
     super('GameScene');
@@ -57,7 +87,7 @@ class GameScene extends Phaser.Scene{
     this.load.image('drink', 'Redbull.png');
   }
 
-  createTerrain(scene, worldWidth = 20000) {
+  createTerrain(scene, worldWidth = 50000) {
     const { width, height } = this.scale;
 
     const minY = height - 450;
@@ -312,6 +342,11 @@ class GameScene extends Phaser.Scene{
   }
 
   update() {
+    //check if player won
+    if(this.player.x > 50000){
+      this.scene.start('EndScene');
+    }
+
     const moveForce = 0.003;
     const jumpForce = 0.40;
     let maxSpeed = 10;
@@ -469,7 +504,7 @@ const config = {
       debug: true
     }
   },
-  scene: [HomeScene, GameScene]
+  scene: [HomeScene, GameScene, EndScene]
 };
 
 let game = new Phaser.Game(config);
