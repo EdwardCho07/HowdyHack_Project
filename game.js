@@ -120,8 +120,8 @@ class GameScene extends Phaser.Scene{
 
         points.push(p2);
 
-        // Add obstacle with 50% chance per terrain segment
-        if (Math.random() < 0.5 && x > solidStart + 200) {
+        // Add obstacle with 30% chance per terrain segment
+        if (Math.random() < 0.3 && x > solidStart + 200) {
             const obsWidth = 50;
             const obsHeight = 50;
             const obsX = (p1.x + p2.x) / 2;
@@ -370,31 +370,29 @@ class GameScene extends Phaser.Scene{
       
       // Reset flags if needed
       this.onGround = false;
-      this.
-      
+      this.spinning = false;
+    }  
     // Move obstacles back and forth
     this.obstacles.forEach(obs => {
-      // Play the scooter animation
+      // Play animation
       obs.anims.play('scooter_move', true);
 
-      // Move X
-      obs.position.x += obs.direction * obs.speed;
+      // Move horizontally using velocity (safe for Matter physics)
+      obs.setVelocityX(obs.direction * obs.speed);
 
       // Reverse direction at edges
-      if (obs.position.x > obs.initialX + obs.range) obs.direction = -1;
-      if (obs.position.x < obs.initialX - obs.range) obs.direction = 1;
+      if (obs.x > obs.initialX + obs.range) obs.direction = -1;
+      if (obs.x < obs.initialX - obs.range) obs.direction = 1;
 
       // Align Y to terrain
-      const terrainY = this.getTerrainY(obs.position.x);
-      Phaser.Physics.Matter.Matter.Body.setPosition(obs, {
-          x: obs.position.x,
-          y: terrainY - (obs.bounds.max.y - obs.position.y)
+      const terrainY = this.getTerrainY(obs.x);
+      // Place the bottom of the obstacle on the terrain
+      Phaser.Physics.Matter.Matter.Body.setPosition(obs.body, {
+        x: obs.x,
+        y: terrainY - obs.displayHeight / 2
       });
     });
 
-    
-    spinning = false;
-    }  
   }
 }
 
