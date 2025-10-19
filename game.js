@@ -136,14 +136,12 @@ class GameScene extends Phaser.Scene{
 
             // Reduce collider from top
             const bodyWidth = obstacle.displayWidth;
-            const bodyHeight = obstacle.displayHeight * 0.6;
-            const offsetY = (obstacle.displayHeight - bodyHeight) / 2;
+            const bodyHeight = obstacle.displayHeight;
 
             obstacle.setBody({
               type: 'rectangle',
               width: bodyWidth,
               height: bodyHeight,
-              offset: { x: 0, y: offsetY }
             });
             obstacle.isKinematic = true;
             Phaser.Physics.Matter.Matter.Body.setMass(obstacle.body, 5000);
@@ -177,20 +175,28 @@ class GameScene extends Phaser.Scene{
 
   create() {
     // Platforms
-
+    this.matter.world.setBounds(0, 0, 50000, window.innerHeight + 400, true, true, true, false);
+    this.createTerrain(this, 50000); 
 
     this.collectibles = this.add.group(); // Phaser group for collectibles
 
     // Generate random collectibles in the air
-    for (let i = 1000; i < 20000; i += 1200) { 
+    for (let i = 4000; i < 50000; i += 2200) { 
         const x = i;
-        const y = Phaser.Math.Between(200, 400); // random height in air
+
+        // Get terrain Y at this X
+        const terrainY = this.getTerrainY(x);
+
+        // Spawn collectible 150-250 px above terrain
+        const y = terrainY - Phaser.Math.Between(150, 250);
+
         const collectible = this.matter.add.sprite(x, y, 'drink'); 
         collectible.setScale(0.15);
         collectible.setStatic(true); // collectibles don't move
         collectible.label = 'collectible';
         this.collectibles.add(collectible);
     }
+
 
     // Add player (a physics-enabled rectangle)
     this.player = this.matter.add.sprite(100,  window.innerHeight - 300, 'player');
@@ -240,22 +246,8 @@ class GameScene extends Phaser.Scene{
 
     this.matter.world.on('collisionstart', (event) => {
       event.pairs.forEach(pair => {
-              const collision = pair.collision;
-              const normal = collision.normal;
-
-              // Determine if surface is mostly below player
-              const playerIsA = pair.bodyA === this.player.body;
-              let normalY = playerIsA ? normal.y : -normal.y;
-
-              if (normalY < -0.5) {
-                  // Add to ground contacts
-                  if (!groundContacts.includes(other)) 
-                    groundContacts.push(other);
-                  
-                  this.onGround = true;
-                  // Use the collision normal for ramp angle
-                  this.currentSurfaceAngle = Math.atan2(normal.x, -normal.y);
-              }
+        const bodies = [pair.bodyA, pair.bodyB];
+        const playerBody = this.player.body;
 
         // Check ground contact
         if (bodies.includes(playerBody)) {
@@ -323,6 +315,7 @@ class GameScene extends Phaser.Scene{
     const moveForce = 0.003;
     const jumpForce = 0.40;
     let maxSpeed = 10;
+    const boostAmount = 5; // additional speed
 
     if (this.speedBoostActive) {
       maxSpeed += boostAmount;
