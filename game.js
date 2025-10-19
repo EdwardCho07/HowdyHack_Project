@@ -29,6 +29,36 @@ class HomeScene extends Phaser.Scene {
   }
 }
 
+class EndScene extends Phaser.Scene {
+  constructor() {
+    super('EndScene');
+  }
+  preload() {
+  }
+  create() {
+    const { width, height } = this.scale;
+
+    // Title text
+    this.add.text(width / 2, height / 2 - 100, "You Are Now a Master Skater!", {
+      fontSize: '48px',
+      fill: '#00c3ffff',
+      fontFamily: 'Arial',
+      stroke: '#000000ff',
+      strokeThickness: 15
+    }).setOrigin(0.5);
+
+    // Restart button
+    const startText = this.add.text(width / 2, height / 2 + 50, 'Press SPACE to Restart', {
+      fontSize: '32px',
+      fill: '#fff'
+    }).setOrigin(0.5);
+
+    this.input.keyboard.once('keydown-SPACE', () => {
+      this.scene.start('GameScene'); // switch to the game
+    });
+  }
+}
+
 class GameScene extends Phaser.Scene{
   constructor(){
     super('GameScene');
@@ -46,7 +76,6 @@ class GameScene extends Phaser.Scene{
 
 
   preload() {
-    // You can load images here later:
     this.load.spritesheet('player', 'skate_idle.png', {frameWidth: 300, frameHeight: 300});
     this.load.spritesheet('player_right', 'Skateboard_Moving_Right.png', {frameWidth: 300, frameHeight: 300});
     this.load.spritesheet('player_left', 'Skateboard_Moving_Left.png', {frameWidth: 300, frameHeight: 300});
@@ -56,9 +85,10 @@ class GameScene extends Phaser.Scene{
     this.load.image('ramp', 'grass.png');
     this.load.audio('push', 'skate_push.mp3');
     //this.load.audio('bg');
+    this.load.image('drink', 'Redbull.png');
   }
 
-  createTerrain(scene, worldWidth = 20000) {
+  createTerrain(scene, worldWidth = 50000) {
     const { width, height } = this.scale;
 
     const minY = height - 450;
@@ -135,8 +165,15 @@ class GameScene extends Phaser.Scene{
             const obstacle = scene.matter.add.sprite(obsX, obsY, 'scooter');
             obstacle.setScale(0.3);
 
-            // Set physics properties
-            obstacle.setBody({ type: 'rectangle', width: obstacle.displayWidth - 15, height: obstacle.displayHeight});
+            // Reduce collider from top
+            const bodyWidth = obstacle.displayWidth;
+            const bodyHeight = obstacle.displayHeight;
+
+            obstacle.setBody({
+              type: 'rectangle',
+              width: bodyWidth,
+              height: bodyHeight,
+            });
             obstacle.isKinematic = true;
             Phaser.Physics.Matter.Matter.Body.setMass(obstacle.body, 5000);
 
@@ -169,6 +206,29 @@ class GameScene extends Phaser.Scene{
 
   create() {
     // Platforms
+    this.matter.world.setBounds(0, 0, 50000, window.innerHeight + 400, true, true, true, false);
+    this.createTerrain(this, 50000); 
+
+    this.collectibles = this.add.group(); 
+
+    // Generate random collectibles in the air
+    for (let i = 4000; i < 50000; i += 2200) { 
+        const x = i;
+
+        // Get terrain Y at this X
+        const terrainY = this.getTerrainY(x);
+
+        // Spawn collectible 150-250 px above terrain
+        const y = terrainY - Phaser.Math.Between(150, 250);
+
+        const collectible = this.matter.add.sprite(x, y, 'drink'); 
+        collectible.setScale(0.15);
+        collectible.setStatic(true); // collectibles don't move
+        collectible.label = 'collectible';
+        this.collectibles.add(collectible);
+    }
+
+    //adding player
     this.matter.world.setBounds(0, 0, 20000, window.innerHeight + 400, true, true, true, false);
     this.createTerrain(this, 20000); 
 
@@ -223,27 +283,34 @@ class GameScene extends Phaser.Scene{
 
     this.matter.world.on('collisionstart', (event) => {
       event.pairs.forEach(pair => {
-          if (pair.bodyA === this.player.body || pair.bodyB === this.player.body) {
-              const other = pair.bodyA === this.player.body ? pair.bodyB : pair.bodyA;
-              const collision = pair.collision;
-              const normal = collision.normal;
+        const bodies = [pair.bodyA, pair.bodyB];
+        const playerBody = this.player.body;
 
-              // Determine if surface is mostly below player
-              const playerIsA = pair.bodyA === this.player.body;
-              let normalY = playerIsA ? normal.y : -normal.y;
+        // Check ground contact
+        if (bodies.includes(playerBody)) {
+          const other = pair.bodyA === playerBody ? pair.bodyB : pair.bodyA;
+          const normal = pair.collision.normal;
+          let normalY = pair.bodyA === playerBody ? normal.y : -normal.y;
 
-              if (normalY < -0.5) {
-                  // Add to ground contacts
-                  if (!groundContacts.includes(other)) 
-                    groundContacts.push(other);
-                  
-                  this.onGround = true;
-                  // Use the collision normal for ramp angle
-                  this.currentSurfaceAngle = Math.atan2(normal.x, -normal.y);
-              }
+          if (normalY < -0.5) {
+            if (!groundContacts.includes(other)) groundContacts.push(other);
+            this.onGround = true;
+            this.currentSurfaceAngle = Math.atan2(normal.x, -normal.y);
           }
+        }
+
+        // Check for collectibles
+        bodies.forEach(body => {
+          if (body.gameObject && body.gameObject.label === 'collectible' && bodies.includes(playerBody)) {
+            const collectible = body.gameObject;
+            collectible.destroy();
+            this.speedBoostActive = true;
+            this.speedBoostTimer = 120;
+          }
+        });
       });
     });
+
     this.matter.world.on('collisionend', (event) => {
       event.pairs.forEach(pair => {
           if (pair.bodyA === this.player.body || pair.bodyB === this.player.body) {
@@ -282,9 +349,23 @@ class GameScene extends Phaser.Scene{
   }
 
   update() {
+    //check if player won
+    if(this.player.x > 50000){
+      this.scene.start('EndScene');
+    }
+
     const moveForce = 0.003;
     const jumpForce = 0.40;
-    const maxSpeed = 10;
+    let maxSpeed = 10;
+    const boostAmount = 5; // additional speed
+
+    if (this.speedBoostActive) {
+      maxSpeed += boostAmount;
+      this.speedBoostTimer--;
+      if (this.speedBoostTimer <= 0) {
+        this.speedBoostActive = false;
+      }
+    }
 
     // Smooth horizontal movement
     // Smooth horizontal movement with inertia
@@ -363,7 +444,6 @@ class GameScene extends Phaser.Scene{
     );
 
     // Keep horizontal velocity for momentum
-    // Optional: dampen slightly for friction
     this.player.setVelocityX(this.player.body.velocity.x * 0.98);
 
     //Force upright if nearly flat surface
@@ -379,7 +459,6 @@ class GameScene extends Phaser.Scene{
 
     // Check if player fell below the screen
     if (this.player.y > config.height + 200) { // 200px buffer
-      // Example: reset player to starting position
       this.player.setPosition(100, window.innerHeight - 200);
       this.player.setVelocity(0, 0);
       this.player.setAngularVelocity(0);
@@ -437,7 +516,7 @@ const config = {
       debug: true
     }
   },
-  scene: [HomeScene, GameScene]
+  scene: [HomeScene, GameScene, EndScene]
 };
 
 let game = new Phaser.Game(config);
