@@ -76,7 +76,6 @@ class GameScene extends Phaser.Scene{
 
 
   preload() {
-    // You can load images here later:
     this.load.spritesheet('player', 'skate_idle.png', {frameWidth: 300, frameHeight: 300});
     this.load.spritesheet('player_right', 'Skateboard_Moving_Right.png', {frameWidth: 300, frameHeight: 300});
     this.load.spritesheet('player_left', 'Skateboard_Moving_Left.png', {frameWidth: 300, frameHeight: 300});
@@ -208,7 +207,7 @@ class GameScene extends Phaser.Scene{
     this.matter.world.setBounds(0, 0, 50000, window.innerHeight + 400, true, true, true, false);
     this.createTerrain(this, 50000); 
 
-    this.collectibles = this.add.group(); // Phaser group for collectibles
+    this.collectibles = this.add.group(); 
 
     // Generate random collectibles in the air
     for (let i = 4000; i < 50000; i += 2200) { 
@@ -227,8 +226,7 @@ class GameScene extends Phaser.Scene{
         this.collectibles.add(collectible);
     }
 
-
-    // Add player (a physics-enabled rectangle)
+    //adding player
     this.player = this.matter.add.sprite(100,  window.innerHeight - 300, 'player');
     this.player.setScale(0.5);
     this.player.setRectangle(this.player.displayWidth, this.player.displayHeight);
@@ -430,7 +428,6 @@ class GameScene extends Phaser.Scene{
     );
 
     // Keep horizontal velocity for momentum
-    // Optional: dampen slightly for friction
     this.player.setVelocityX(this.player.body.velocity.x * 0.98);
 
     //Force upright if nearly flat surface
@@ -446,7 +443,6 @@ class GameScene extends Phaser.Scene{
 
     // Check if player fell below the screen
     if (this.player.y > config.height + 200) { // 200px buffer
-      // Example: reset player to starting position
       this.player.setPosition(100, window.innerHeight - 200);
       this.player.setVelocity(0, 0);
       this.player.setAngularVelocity(0);
