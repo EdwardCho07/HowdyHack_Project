@@ -86,6 +86,9 @@ class GameScene extends Phaser.Scene{
     this.load.audio('push', 'skate_push.mp3');
     this.load.audio('bg', 'bg_music.mp3');
     this.load.audio('win', 'win.wav');
+    this.load.audio('can', 'drink.wav');
+    this.load.audio('jump', 'ollie.wav');
+    this.load.audio('fail', 'fail.wav');
     this.load.image('drink', 'Redbull.png');
   }
 
@@ -234,6 +237,9 @@ class GameScene extends Phaser.Scene{
     this.win = this.sound.add('win');
     this.bgMusic = this.sound.add('bg', { loop: true, volume: 0.3 });
     this.bgMusic.play();
+    this.can = this.sound.add('can');
+    this.fail = this.sound.add('fail');
+    this.jump = this.sound.add('jump');
     
     // Add player (a physics-enabled rectangle)
     this.player = this.matter.add.sprite(100,  window.innerHeight - 300, 'player');
@@ -306,6 +312,7 @@ class GameScene extends Phaser.Scene{
             collectible.destroy();
             this.speedBoostActive = true;
             this.speedBoostTimer = 120;
+            this.can.play();
           }
         });
       });
@@ -412,6 +419,7 @@ class GameScene extends Phaser.Scene{
         // Optional: add horizontal momentum slightly
         this.player.applyForce({ x: this.player.body.velocity.x * 0.001, y: 0 });
         this.player.anims.play('ollie', true);
+        this.jump.play();
     }
 
     // Start spin when both keys are down
@@ -464,6 +472,7 @@ class GameScene extends Phaser.Scene{
       this.player.setPosition(100, window.innerHeight - 200);
       this.player.setVelocity(0, 0);
       this.player.setAngularVelocity(0);
+      this.fail.play();
       
       // Reset flags if needed
       this.onGround = false;
