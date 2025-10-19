@@ -377,21 +377,34 @@ class GameScene extends Phaser.Scene{
       // Play animation
       obs.anims.play('scooter_move', true);
 
-      // Move horizontally using velocity (safe for Matter physics)
+      // Ensure dynamic body
+      obs.isKinematic = false;
+      obs.setMass(5);
+      obs.setFriction(0.5);
+      obs.setFrictionAir(0.02);
+      obs.setBounce(0);
+
+      // Move horizontally (Matter handles collisions and slope)
       obs.setVelocityX(obs.direction * obs.speed);
 
       // Reverse direction at edges
       if (obs.x > obs.initialX + obs.range) obs.direction = -1;
       if (obs.x < obs.initialX - obs.range) obs.direction = 1;
 
-      // Align Y to terrain
-      const terrainY = this.getTerrainY(obs.x);
-      // Place the bottom of the obstacle on the terrain
-      Phaser.Physics.Matter.Matter.Body.setPosition(obs.body, {
-        x: obs.x,
-        y: terrainY - obs.displayHeight / 2
-      });
+      // Align rotation to slope
+      const seg = this.terrainSegments.find(s => obs.x >= s.x1 && obs.x <= s.x2);
+      if (seg) {
+        const targetAngle = Math.atan2(seg.y2 - seg.y1, seg.x2 - seg.x1);
+        obs.rotation = Phaser.Math.Angle.RotateTo(obs.rotation, targetAngle, 0.05);
+      }
+
+      // Flip sprite horizontally depending on direction
+      obs.flipX = obs.direction < 0;
     });
+
+
+
+
 
   }
 }
