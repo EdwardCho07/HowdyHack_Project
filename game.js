@@ -84,7 +84,8 @@ class GameScene extends Phaser.Scene{
     this.load.image('player_air', 'Skateboard_Air.png');
     this.load.image('ramp', 'grass.png');
     this.load.audio('push', 'skate_push.mp3');
-    //this.load.audio('bg');
+    this.load.audio('bg', 'bg_music.mp3');
+    this.load.audio('win', 'win.wav');
     this.load.image('drink', 'Redbull.png');
   }
 
@@ -228,12 +229,11 @@ class GameScene extends Phaser.Scene{
         this.collectibles.add(collectible);
     }
 
-    //adding player
-    this.matter.world.setBounds(0, 0, 20000, window.innerHeight + 400, true, true, true, false);
-    this.createTerrain(this, 20000); 
-
     // Sounds
     this.moving = this.sound.add('push');
+    this.win = this.sound.add('win');
+    this.bgMusic = this.sound.add('bg', { loop: true, volume: 0.3 });
+    this.bgMusic.play();
     
     // Add player (a physics-enabled rectangle)
     this.player = this.matter.add.sprite(100,  window.innerHeight - 300, 'player');
@@ -352,6 +352,8 @@ class GameScene extends Phaser.Scene{
     //check if player won
     if(this.player.x > 50000){
       this.scene.start('EndScene');
+      this.bgMusic.pause();
+      this.win.play();
     }
 
     const moveForce = 0.003;
