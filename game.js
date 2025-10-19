@@ -96,7 +96,7 @@ class GameScene extends Phaser.Scene{
 
     // Add player (a physics-enabled rectangle)
     this.player = this.matter.add.sprite(100, window.innerHeight - 200, 'player');
-    this.player.setScale(2);
+    this.player.setScale(0.5);
     this.player.setRectangle(this.player.displayWidth, this.player.displayHeight);
     this.player.setBounce(0.2);
     this.player.setFixedRotation(false);
