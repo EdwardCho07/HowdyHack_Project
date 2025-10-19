@@ -50,6 +50,8 @@ class GameScene extends Phaser.Scene{
     this.load.spritesheet('player', 'skate_idle.png', {frameWidth: 300, frameHeight: 300});
     this.load.spritesheet('player_right', 'Skateboard_Moving_Right.png', {frameWidth: 300, frameHeight: 300});
     this.load.spritesheet('player_left', 'Skateboard_Moving_Left.png', {frameWidth: 300, frameHeight: 300});
+    this.load.spritesheet('scooter', 'Scooter_Animation.png', {frameWidth: 300, frameHeight: 300});
+    this.load.spritesheet('ollie_anim', 'Skateboard_Ollie.png', {frameWidth: 300, frameHeight: 300});
     this.load.image('player_air', 'Skateboard_Air.png');
     this.load.image('ground', 'grass.png');
     this.load.image('ramp', 'grass.png');
@@ -58,56 +60,42 @@ class GameScene extends Phaser.Scene{
   createTerrain(scene, worldWidth = 20000) {
     const { width, height } = this.scale;
 
-    const minY = height - 450;       // highest point terrain can go
-    const maxY = height - 50;        // lowest point terrain can go
-    const minLength = 300;           // min horizontal segment length
-    const maxLength = 400;           // max horizontal segment length
-    const gapChance = 0.3;           // chance to generate a gap
-    const solidStart = 500;          // first 500px is flat buffer
-    const maxSlope = 0.5;            // max rise/run ratio per segment
-    const maxJumpHeight = 150;       // maximum height difference player can jump
-    const minGapWidth = 50;          // min gap width
-    const maxGapWidth = 150;         // max gap width
+    const minY = height - 450;
+    const maxY = height - 50;
+    const minLength = 300;
+    const maxLength = 400;
+    const gapChance = 0.3;
+    const solidStart = 500;
+    const maxJumpHeight = 150;
+    const minGapWidth = 50;
+    const maxGapWidth = 150;
 
     let points = [];
     let x = 0;
-    let y = height - 120; // starting Y
+    let y = height - 120;
     points.push({ x, y });
 
     const graphics = scene.add.graphics();
     graphics.lineStyle(6, 0x4b2e05, 1);
 
+    // Initialize arrays
+    this.obstacles = [];
+    this.terrainSegments = [];
+
     while (x < worldWidth) {
-        // Decide if we make a gap
         const makeGap = x >= solidStart && Math.random() < gapChance;
         if (makeGap) {
             const gapWidth = Phaser.Math.Between(minGapWidth, maxGapWidth);
             x += gapWidth;
-
-            // Clamp next Y after gap to be reachable
-            let nextY = Phaser.Math.Between(y - maxJumpHeight, y + maxJumpHeight);
-            nextY = Phaser.Math.Clamp(nextY, minY, maxY);
-
-            points.push(null); // mark the gap
-            y = nextY;
+            y = Phaser.Math.Clamp(y + Phaser.Math.Between(-maxJumpHeight, maxJumpHeight), minY, maxY);
+            points.push(null);
             continue;
         }
 
-        // Generate terrain segment
-        let length = Phaser.Math.Between(minLength, maxLength);
+        const length = Phaser.Math.Between(minLength, maxLength);
+        const nextY = Phaser.Math.Clamp(y + (x < solidStart ? 0 : Phaser.Math.Between(-maxJumpHeight, maxJumpHeight)), minY, maxY);
 
-        // Clamp vertical change for segment
-        let deltaY;
-        if (x < solidStart) {
-            deltaY = 0; // keep flat for starting buffer
-        } else {
-            deltaY = Phaser.Math.Between(-maxJumpHeight, maxJumpHeight);
-        }
-
-        let nextY = Phaser.Math.Clamp(y + deltaY, minY, maxY);
-
-        const prev = points[points.length - 1] || { x, y };
-        const p1 = prev || { x, y };
+        const p1 = points[points.length - 1] || { x, y };
         const p2 = { x: x + length, y: nextY };
 
         // Add terrain physics
@@ -124,44 +112,58 @@ class GameScene extends Phaser.Scene{
             }
         );
 
-        // Draw segment
+        // Draw terrain
         graphics.lineBetween(p1.x, p1.y, p2.x, p2.y);
 
+        // Save segment for obstacle slope alignment
+        this.terrainSegments.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y });
+
         points.push(p2);
-        x += length;
-        y = nextY; // update current y
 
-        // Add moving obstacle randomly
-        if (Math.random() < 0.2 && p2 !== null && x > solidStart + 200) { // 20% chance
-          const obsWidth = 50;
-          const obsHeight = 50;
-          const obsX = (p1.x + p2.x) / 2;
-          const obsY = (p1.y + p2.y) - obsHeight / 2 - 5; // slightly above terrain
+        // Add obstacle with 50% chance per terrain segment
+        if (Math.random() < 0.5 && x > solidStart + 200) {
+            const obsWidth = 50;
+            const obsHeight = 50;
+            const obsX = (p1.x + p2.x) / 2;
 
-          const obstacle = scene.matter.add.rectangle(
-            obsX,
-            obsY,
-            obsWidth,
-            obsHeight,
-            {
-                isStatic: false,
-                friction: 0,
-                frictionAir: 0,
-                restitution: 0,
-                label: 'obstacle'
-            }
-          );
+            // Compute Y on terrain
+            const t = (obsX - p1.x) / (p2.x - p1.x);
+            const obsY = Phaser.Math.Linear(p1.y, p2.y, t) - obsHeight / 2 - 5;
 
-          obstacle.initialX = obsX; // store initial X for oscillation
-          obstacle.range = Phaser.Math.Between(100, 300); // movement range
-          obstacle.direction = Math.random() < 0.5 ? 1 : -1; // start moving left or right
+            // Create kinematic obstacle
+            const obstacle = scene.matter.add.sprite(obsX, obsY, 'scooter');
+            obstacle.setScale(0.3)
 
-          scene.obstacles.push(obstacle);
+            // Set physics properties
+            obstacle.setBody({ type: 'rectangle', width: obstacle.displayWidth, height: obstacle.displayHeight });
+            obstacle.isKinematic = true;
+            Phaser.Physics.Matter.Matter.Body.setMass(obstacle.body, 5000);
+
+            // Set initial movement properties
+            obstacle.initialX = obsX;
+            obstacle.range = Phaser.Math.Between(100, 300);
+            obstacle.direction = Math.random() < 0.5 ? 1 : -1;
+            obstacle.speed = 2;
+
+            this.obstacles.push(obstacle);
         }
+
+        x += length;
+        y = nextY;
     }
 
     graphics.strokePath();
     this.terrainPoints = points;
+  }
+
+  getTerrainY(x) {
+    for (const seg of this.terrainSegments) {
+        if (x >= seg.x1 && x <= seg.x2) {
+            const t = (x - seg.x1) / (seg.x2 - seg.x1);
+            return Phaser.Math.Linear(seg.y1, seg.y2, t);
+        }
+    }
+    return this.scale.height - 100; // fallback
   }
 
   create() {
@@ -202,6 +204,18 @@ class GameScene extends Phaser.Scene{
         frames: this.anims.generateFrameNumbers('player_left', { start: 0, end: 2 }),
         frameRate: 4,
         repeat: -1
+    });
+    this.anims.create({
+      key: 'scooter_move',
+      frames: this.anims.generateFrameNumbers('scooter', { start: 0, end: 2 }), 
+      frameRate: 3, 
+      repeat: -1 
+    });
+    this.anims.create({
+      key: 'ollie',
+      frames: this.anims.generateFrameNumbers('ollie_anim', { start: 0, end: 3 }), 
+      frameRate: 3, 
+      repeat: -1 
     });
 
     this.matter.world.on('collisionstart', (event) => {
@@ -360,16 +374,26 @@ class GameScene extends Phaser.Scene{
       
     // Move obstacles back and forth
     this.obstacles.forEach(obs => {
-    obs.position.x += obs.direction * this.obstacleSpeed;
+      // Play the scooter animation
+      obs.anims.play('scooter_move', true);
 
-    // Reverse direction if we reach the range
-    if (obs.position.x > obs.initialX + obs.range) obs.direction = -1;
-    if (obs.position.x < obs.initialX - obs.range) obs.direction = 1;
+      // Move X
+      obs.position.x += obs.direction * obs.speed;
 
-    // Update Matter body position
-    this.matter.body.setPosition(obs, { x: obs.position.x, y: obs.position.y });
-});
-spinning = false;
+      // Reverse direction at edges
+      if (obs.position.x > obs.initialX + obs.range) obs.direction = -1;
+      if (obs.position.x < obs.initialX - obs.range) obs.direction = 1;
+
+      // Align Y to terrain
+      const terrainY = this.getTerrainY(obs.position.x);
+      Phaser.Physics.Matter.Matter.Body.setPosition(obs, {
+          x: obs.position.x,
+          y: terrainY - (obs.bounds.max.y - obs.position.y)
+      });
+    });
+
+    
+    spinning = false;
     }  
   }
 }
