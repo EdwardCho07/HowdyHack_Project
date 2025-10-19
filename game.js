@@ -53,7 +53,6 @@ class GameScene extends Phaser.Scene{
     this.load.spritesheet('scooter', 'Scooter_Animation.png', {frameWidth: 300, frameHeight: 300});
     this.load.spritesheet('ollie_anim', 'Skateboard_Ollie.png', {frameWidth: 300, frameHeight: 300});
     this.load.image('player_air', 'Skateboard_Air.png');
-    this.load.image('ground', 'grass.png');
     this.load.image('ramp', 'grass.png');
     this.load.image('drink', 'Redbull.png');
   }
@@ -385,7 +384,7 @@ class GameScene extends Phaser.Scene{
 
     if (this.spinning) {
       // Check if player has reached or passed the target rotation
-      
+      this.player.setTexture('player_air');
       if ((this.player.body.angularVelocity > 0 && this.player.rotation >= this.targetRotation) ||
           (this.player.body.angularVelocity < 0 && this.player.rotation <= this.targetRotation)) {
           this.player.setAngularVelocity(0);
