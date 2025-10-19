@@ -8,7 +8,7 @@ class HomeScene extends Phaser.Scene {
     const { width, height } = this.scale;
 
     // Title text
-    this.add.text(width / 2, height / 2 - 100, 'My 2D Platformer', {
+    this.add.text(width / 2, height / 2 - 100, 'Ollie Chaos!', {
       fontSize: '48px',
       fill: '#fff',
       fontFamily: 'Arial',
@@ -92,7 +92,7 @@ class GameScene extends Phaser.Scene{
     this.load.image('drink', 'Redbull.png');
   }
 
-  createTerrain(scene, worldWidth = 50000) {
+  createTerrain(scene, worldWidth = 40000) {
     const { width, height } = this.scale;
 
     const minY = height - 450;
@@ -102,8 +102,8 @@ class GameScene extends Phaser.Scene{
     const gapChance = 0.3;
     const solidStart = 500;
     const maxJumpHeight = 150;
-    const minGapWidth = 50;
-    const maxGapWidth = 150;
+    const minGapWidth = 75;
+    const maxGapWidth = 175;
 
     let points = [];
     let x = 0;
@@ -210,8 +210,8 @@ class GameScene extends Phaser.Scene{
 
   create() {
     // Platforms
-    this.matter.world.setBounds(0, 0, 50000, window.innerHeight + 400, true, true, true, false);
-    this.createTerrain(this, 50000); 
+    this.matter.world.setBounds(0, 0, 30000, window.innerHeight + 400, true, true, true, false);
+    this.createTerrain(this, 40000); 
 
     this.collectibles = this.add.group(); 
 
@@ -251,8 +251,8 @@ class GameScene extends Phaser.Scene{
     this.player.setFriction(0);   
     this.player.setFrictionAir(0.01);
     this.player.setOrigin(0.5, 0.5);
-    this.player.setFlipY(true)
-    this.player.setFlipX(true)
+    this.player.setFlipY(true);
+    this.player.setFlipX(true);
 
     let groundContacts = [];
 
@@ -357,7 +357,7 @@ class GameScene extends Phaser.Scene{
 
   update() {
     //check if player won
-    if(this.player.x > 50000){
+    if(this.player.x > 25000){
       this.scene.start('EndScene');
       this.bgMusic.pause();
       this.win.play();
@@ -509,9 +509,6 @@ class GameScene extends Phaser.Scene{
     });
 
 
-
-
-
   }
 }
 
@@ -524,7 +521,7 @@ const config = {
     default: 'matter',
     matter: {
       gravity: { y: 1 },
-      debug: true
+      debug: false
     }
   },
   scene: [HomeScene, GameScene, EndScene]
