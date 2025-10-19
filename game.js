@@ -34,12 +34,16 @@ class GameScene extends Phaser.Scene{
     super('GameScene');
   }
 
+  
   player; platforms; keys;
   onGround = false;
   currentSurfaceAngle = 0;
   spinning = false;
   targetRotation = 0;
-  hasSpun = false;
+  
+  obstacles = [];
+  obstacleSpeed = 2; // pixels per frame
+
 
   preload() {
     // You can load images here later:
@@ -48,61 +52,136 @@ class GameScene extends Phaser.Scene{
     this.load.spritesheet('player_left', 'Skateboard_Moving_Left.png', {frameWidth: 300, frameHeight: 300});
     this.load.image('player_air', 'Skateboard_Air.png');
     this.load.image('ground', 'grass.png');
-    this.load.image('ramp', 'ramp.png');
+    this.load.image('ramp', 'grass.png');
   }
 
-  createPlatforms(scene, numPlatforms = 50) {
-    let x = 600; // starting x position
-    let previousY = window.innerHeight - 100; // starting platform height
+  createTerrain(scene, worldWidth = 20000) {
+    const { width, height } = this.scale;
 
-    for (let i = 0; i < numPlatforms; i++) {
-      // Random horizontal spacing between platforms
-      const spacing = Phaser.Math.Between(200, 600);
-      x += spacing;
+    const minY = height - 450;       // highest point terrain can go
+    const maxY = height - 50;        // lowest point terrain can go
+    const minLength = 300;           // min horizontal segment length
+    const maxLength = 400;           // max horizontal segment length
+    const gapChance = 0.3;           // chance to generate a gap
+    const solidStart = 500;          // first 500px is flat buffer
+    const maxSlope = 0.5;            // max rise/run ratio per segment
+    const maxJumpHeight = 150;       // maximum height difference player can jump
+    const minGapWidth = 50;          // min gap width
+    const maxGapWidth = 150;         // max gap width
 
-      // Random vertical offset, but limit difference from previous platform
-      const deltaY = Phaser.Math.Between(-100, 100);
-      let y = Phaser.Math.Clamp(previousY + deltaY, window.innerHeight - 300, window.innerHeight - 50);
-      previousY = y;
+    let points = [];
+    let x = 0;
+    let y = height - 120; // starting Y
+    points.push({ x, y });
 
-      // Random platform width
-      const width = Phaser.Math.Between(200, 400);
+    const graphics = scene.add.graphics();
+    graphics.lineStyle(6, 0x4b2e05, 1);
 
-      // Decide if this platform should be a ramp
-      const isRamp = Phaser.Math.Between(0, 1) === 1;
-      const angle = isRamp ? Phaser.Math.Between(-30, 30) : 0;
+    while (x < worldWidth) {
+        // Decide if we make a gap
+        const makeGap = x >= solidStart && Math.random() < gapChance;
+        if (makeGap) {
+            const gapWidth = Phaser.Math.Between(minGapWidth, maxGapWidth);
+            x += gapWidth;
 
-      // Create the platform/ramp
-      scene.matter.add.rectangle(x, y, width, 20, {
-        isStatic: true,
-        angle: Phaser.Math.DegToRad(angle),
-        friction: 0,
-        frictionStatic: 0
-      });
+            // Clamp next Y after gap to be reachable
+            let nextY = Phaser.Math.Between(y - maxJumpHeight, y + maxJumpHeight);
+            nextY = Phaser.Math.Clamp(nextY, minY, maxY);
+
+            points.push(null); // mark the gap
+            y = nextY;
+            continue;
+        }
+
+        // Generate terrain segment
+        let length = Phaser.Math.Between(minLength, maxLength);
+
+        // Clamp vertical change for segment
+        let deltaY;
+        if (x < solidStart) {
+            deltaY = 0; // keep flat for starting buffer
+        } else {
+            deltaY = Phaser.Math.Between(-maxJumpHeight, maxJumpHeight);
+        }
+
+        let nextY = Phaser.Math.Clamp(y + deltaY, minY, maxY);
+
+        const prev = points[points.length - 1] || { x, y };
+        const p1 = prev || { x, y };
+        const p2 = { x: x + length, y: nextY };
+
+        // Add terrain physics
+        scene.matter.add.rectangle(
+            (p1.x + p2.x) / 2,
+            (p1.y + p2.y) / 2,
+            Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y),
+            5,
+            {
+                isStatic: true,
+                angle: Phaser.Math.Angle.Between(p1.x, p1.y, p2.x, p2.y),
+                friction: 0.4,
+                frictionStatic: 0.8
+            }
+        );
+
+        // Draw segment
+        graphics.lineBetween(p1.x, p1.y, p2.x, p2.y);
+
+        points.push(p2);
+        x += length;
+        y = nextY; // update current y
+
+        // Add moving obstacle randomly
+        if (Math.random() < 0.2 && p2 !== null && x > solidStart + 200) { // 20% chance
+          const obsWidth = 50;
+          const obsHeight = 50;
+          const obsX = (p1.x + p2.x) / 2;
+          const obsY = (p1.y + p2.y) - obsHeight / 2 - 5; // slightly above terrain
+
+          const obstacle = scene.matter.add.rectangle(
+            obsX,
+            obsY,
+            obsWidth,
+            obsHeight,
+            {
+                isStatic: false,
+                friction: 0,
+                frictionAir: 0,
+                restitution: 0,
+                label: 'obstacle'
+            }
+          );
+
+          obstacle.initialX = obsX; // store initial X for oscillation
+          obstacle.range = Phaser.Math.Between(100, 300); // movement range
+          obstacle.direction = Math.random() < 0.5 ? 1 : -1; // start moving left or right
+
+          scene.obstacles.push(obstacle);
+        }
     }
+
+    graphics.strokePath();
+    this.terrainPoints = points;
   }
+
   create() {
     // Platforms
-    this.matter.world.setBounds(0, 0, 60000, window.innerHeight);
-    this.createPlatforms(this, 50); 
-    // Ground
-    this.matter.add.rectangle(5000, window.innerHeight - 10, 10000, 20, { isStatic: true });
+    this.matter.world.setBounds(0, 0, 20000, window.innerHeight + 400, true, true, true, false);
+    this.createTerrain(this, 20000); 
 
-    // Ramp
-    this.matter.add.rectangle(600, window.innerHeight - 60, 300, 20, {
-      isStatic: true,
-      angle: Phaser.Math.DegToRad(-20)
-    });
 
     // Add player (a physics-enabled rectangle)
-    this.player = this.matter.add.sprite(100, window.innerHeight - 200, 'player');
+    this.player = this.matter.add.sprite(100,  window.innerHeight - 300, 'player');
     this.player.setScale(0.5);
     this.player.setRectangle(this.player.displayWidth, this.player.displayHeight);
-    this.player.setBounce(0.2);
+    this.player.setBounce(0.1);
     this.player.setFixedRotation(false);
-    this.player.setMass(1);
+    this.player.setMass(10);
     this.player.setFriction(0);   
-    this.player.setFrictionAir(0.02);
+    this.player.setFrictionAir(0.01);
+    this.player.setOrigin(0.5, 0.5);
+    this.player.setFlipY(true)
+    this.player.setFlipX(true)
 
     let groundContacts = [];
 
@@ -138,10 +217,10 @@ class GameScene extends Phaser.Scene{
 
               if (normalY < -0.5) {
                   // Add to ground contacts
-                  if (!groundContacts.includes(other)) groundContacts.push(other);
-
+                  if (!groundContacts.includes(other)) 
+                    groundContacts.push(other);
+                  
                   this.onGround = true;
-
                   // Use the collision normal for ramp angle
                   this.currentSurfaceAngle = Math.atan2(normal.x, -normal.y);
               }
@@ -155,18 +234,21 @@ class GameScene extends Phaser.Scene{
 
               // Remove from ground contacts
               const index = groundContacts.indexOf(other);
-              if (index !== -1) groundContacts.splice(index, 1);
+              if (index !== -1) 
+                groundContacts.splice(index, 1);
 
               // Only unset onGround if no contacts below remain
               this.onGround = groundContacts.length > 0;
-              if (!this.onGround) this.currentSurfaceAngle = 0;
+              if (!this.onGround) {
+                  this.currentSurfaceAngle = 0;
+              }
           }
       });
     });
 
     // Camera
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
-    this.cameras.main.setBounds(0, 0, 10000, window.innerHeight);
+    this.cameras.main.setBounds(0, 0, 60000, window.innerHeight);
 
     // Input keys
     this.keys = this.input.keyboard.addKeys({
@@ -183,12 +265,12 @@ class GameScene extends Phaser.Scene{
   }
 
   update() {
-    const moveForce = 0.002;
-    const jumpForce = 0.040;
-    const rotateForce = 0.006;
-    const maxSpeed = 8;
+    const moveForce = 0.003;
+    const jumpForce = 0.40;
+    const maxSpeed = 10;
 
     // Smooth horizontal movement
+    // Smooth horizontal movement with inertia
     let targetVelX = 0;
     if (this.keys.left.isDown){ 
       targetVelX = -maxSpeed;
@@ -202,47 +284,67 @@ class GameScene extends Phaser.Scene{
         this.player.anims.play('idle', true);
       }
     }
-    // Interpolate current velocity toward target velocity
-    this.player.setVelocityX(Phaser.Math.Linear(this.player.body.velocity.x, targetVelX, 0.1));
 
-    // Jump (only when touching ground or ramp)
-    if (Phaser.Input.Keyboard.JustDown(this.keys.space) && this.onGround) {
-      this.player.applyForce({ x: 0, y: -jumpForce });
+    if (targetVelX !== 0) {
+      // If pressing left/right, apply acceleration
+      const velDiff = targetVelX - this.player.body.velocity.x;
+      this.player.applyForce({ x: velDiff * moveForce, y: 0 });
+    } else {
+        // No input: apply small friction to slow down gradually
+        this.player.setVelocityX(this.player.body.velocity.x * 0.9999); // 0.995 = slow slide
     }
-    // Start spin when both keys are down and not already spinning
-    if (!this.spinning && !this.onGround && !this.hasSpun && this.keys.six.isDown && this.keys.seven.isDown) {
+    // Jump
+    if (Phaser.Input.Keyboard.JustDown(this.keys.space) && this.onGround) {
+        const jumpForceY = -jumpForce - Math.abs(this.player.body.velocity.x) * 0.005; // extra boost if moving fast
+        this.player.applyForce({ x: 0, y: jumpForceY });
+        
+        // Optional: add horizontal momentum slightly
+        this.player.applyForce({ x: this.player.body.velocity.x * 0.001, y: 0 });
+    }
+
+    // Start spin when both keys are down
+    if (!this.spinning && !this.onGround && this.keys.six.isDown && this.keys.seven.isDown) {
       this.spinning = true;
-      // Set target rotation: 360 degrees = 2 * PI radians
+
+      // Set target rotation: 360 degrees plus current rotation
       this.targetRotation = this.player.rotation + Math.PI * 2;
-      // Set angular velocity for the spin
-      this.player.setAngularVelocity(0.2); // adjust speed as desired
+
+      // Set angular velocity based on horizontal speed (faster = faster spin)
+      const baseSpin = 0.15; // base spin
+      this.player.setAngularVelocity(baseSpin + Math.abs(this.player.body.velocity.x) * 0.01);
     }
 
     if (this.spinning) {
       // Check if player has reached or passed the target rotation
       if ((this.player.body.angularVelocity > 0 && this.player.rotation >= this.targetRotation) ||
           (this.player.body.angularVelocity < 0 && this.player.rotation <= this.targetRotation)) {
-          this.spinning = false;
           this.player.setAngularVelocity(0);
           this.player.rotation = this.targetRotation % (Math.PI * 2); // wrap rotation
       }
     }
 
     if (this.onGround) {
-      // Smoothly interpolate rotation to match surface angle
+      this.spinning = false;
       const ROTATION_SPEED = 0.1;
       this.player.rotation = Phaser.Math.Angle.RotateTo(
-          this.player.rotation,
-          this.currentSurfaceAngle,
-          ROTATION_SPEED
-      );
-      this.player.setAngularVelocity(0);
+      this.player.rotation,
+      this.currentSurfaceAngle,
+      ROTATION_SPEED
+    );
 
-      // Stop angular velocity so it doesn't wobble
-      this.player.setAngularVelocity(0);
-    } else {
-        // Rotation in air (spins, etc.) remains unchanged
+    // Keep horizontal velocity for momentum
+    // Optional: dampen slightly for friction
+    this.player.setVelocityX(this.player.body.velocity.x * 0.98);
+
+    //Force upright if nearly flat surface
+    if (Math.abs(this.currentSurfaceAngle) < Phaser.Math.DegToRad(5)) {
+      this.player.setRotation(0); // rotates the display
+      this.matter.body.setAngle(this.player.body, 0); // rotates physics body too
     }
+
+    // Stop angular velocity so it doesn't wobble
+      this.player.setAngularVelocity(0);
+  }
 
 
     // Check if player fell below the screen
@@ -251,12 +353,23 @@ class GameScene extends Phaser.Scene{
       this.player.setPosition(100, window.innerHeight - 200);
       this.player.setVelocity(0, 0);
       this.player.setAngularVelocity(0);
-      this.player.rotation = 0;
       
       // Reset flags if needed
       this.onGround = false;
-      this.hasSpun = false;
-      this.spinning = false;
+      this.
+      
+    // Move obstacles back and forth
+    this.obstacles.forEach(obs => {
+    obs.position.x += obs.direction * this.obstacleSpeed;
+
+    // Reverse direction if we reach the range
+    if (obs.position.x > obs.initialX + obs.range) obs.direction = -1;
+    if (obs.position.x < obs.initialX - obs.range) obs.direction = 1;
+
+    // Update Matter body position
+    this.matter.body.setPosition(obs, { x: obs.position.x, y: obs.position.y });
+});
+spinning = false;
     }  
   }
 }
