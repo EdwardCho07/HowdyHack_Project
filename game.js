@@ -132,10 +132,10 @@ class GameScene extends Phaser.Scene{
 
             // Create kinematic obstacle
             const obstacle = scene.matter.add.sprite(obsX, obsY, 'scooter');
-            obstacle.setScale(0.3)
+            obstacle.setScale(0.3);
 
             // Set physics properties
-            obstacle.setBody({ type: 'rectangle', width: obstacle.displayWidth, height: obstacle.displayHeight });
+            obstacle.setBody({ type: 'rectangle', width: obstacle.displayWidth - 15, height: obstacle.displayHeight});
             obstacle.isKinematic = true;
             Phaser.Physics.Matter.Matter.Body.setMass(obstacle.body, 5000);
 
@@ -214,8 +214,8 @@ class GameScene extends Phaser.Scene{
     this.anims.create({
       key: 'ollie',
       frames: this.anims.generateFrameNumbers('ollie_anim', { start: 0, end: 3 }), 
-      frameRate: 3, 
-      repeat: -1 
+      frameRate: 4, 
+      repeat: 1
     });
 
     this.matter.world.on('collisionstart', (event) => {
@@ -288,11 +288,15 @@ class GameScene extends Phaser.Scene{
     let targetVelX = 0;
     if (this.keys.left.isDown){ 
       targetVelX = -maxSpeed;
-      this.player.anims.play('left', true);
+      if(this.onGround){
+        this.player.anims.play('left', true);
+      }
     }
     else if (this.keys.right.isDown){
       targetVelX = maxSpeed;
-      this.player.anims.play('right', true);
+      if(this.onGround){
+        this.player.anims.play('right', true);
+      }
     } else {
       if(this.onGround){
         this.player.anims.play('idle', true);
@@ -314,6 +318,7 @@ class GameScene extends Phaser.Scene{
         
         // Optional: add horizontal momentum slightly
         this.player.applyForce({ x: this.player.body.velocity.x * 0.001, y: 0 });
+        this.player.anims.play('ollie', true);
     }
 
     // Start spin when both keys are down
@@ -330,6 +335,7 @@ class GameScene extends Phaser.Scene{
 
     if (this.spinning) {
       // Check if player has reached or passed the target rotation
+      
       if ((this.player.body.angularVelocity > 0 && this.player.rotation >= this.targetRotation) ||
           (this.player.body.angularVelocity < 0 && this.player.rotation <= this.targetRotation)) {
           this.player.setAngularVelocity(0);
