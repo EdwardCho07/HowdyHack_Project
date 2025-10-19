@@ -16,6 +16,8 @@ const config = {
 let game = new Phaser.Game(config);
 let player, input;
 let onGround = false;
+let currentSurfaceAngle = 0; // stores the current ramp angle
+
 
 function preload() {
   this.load.spritesheet('player', 'skate_idle.png', { frameWidth: 300, frameHeight: 300 });
@@ -23,11 +25,47 @@ function preload() {
   this.load.image('ramp', 'ramp.png');
 }
 
+function createPlatforms(scene, numPlatforms = 50) {
+  let x = 600; // starting x position
+  let previousY = window.innerHeight - 100; // starting platform height
+
+  for (let i = 0; i < numPlatforms; i++) {
+    // Random horizontal spacing between platforms
+    const spacing = Phaser.Math.Between(200, 600);
+    x += spacing;
+
+    // Random vertical offset, but limit difference from previous platform
+    const deltaY = Phaser.Math.Between(-100, 100);
+    let y = Phaser.Math.Clamp(previousY + deltaY, window.innerHeight - 300, window.innerHeight - 50);
+    previousY = y;
+
+    // Random platform width
+    const width = Phaser.Math.Between(200, 400);
+
+    // Decide if this platform should be a ramp
+    const isRamp = Phaser.Math.Between(0, 1) === 1;
+    const angle = isRamp ? Phaser.Math.Between(-30, 30) : 0;
+
+    // Create the platform/ramp
+    scene.matter.add.rectangle(x, y, width, 20, {
+      isStatic: true,
+      angle: Phaser.Math.DegToRad(angle),
+      friction: 0,
+      frictionStatic: 0
+    });
+  }
+}
+
+
+
 function create() {
-  this.matter.world.setBounds(0, 0, 60000, window.innerHeight);
+  this.matter.world.setBounds(0, 0, 60000, window.innerHeight + 400);
+
+  //
+  createPlatforms(this, 50); 
 
   // Ground
-  this.matter.add.rectangle(5000, window.innerHeight - 10, 10000, 20, { isStatic: true });
+  this.matter.add.rectangle(0, window.innerHeight - 10, 1000, 20, { isStatic: true });
 
   // Ramp
   this.matter.add.rectangle(600, window.innerHeight - 60, 300, 20, {
@@ -45,33 +83,51 @@ function create() {
   player.setFriction(0);   
   player.setFrictionAir(0.02); 
 
-  // Collision detection for ground/ramp contact
+  let groundContacts = [];
+
   this.matter.world.on('collisionstart', (event) => {
-    event.pairs.forEach(pair => {
-      if (pair.bodyA === player.body || pair.bodyB === player.body) {
-        const collision = pair.collision;
-        const normalY = collision.normal.y;
+      event.pairs.forEach(pair => {
+          if (pair.bodyA === player.body || pair.bodyB === player.body) {
+              const other = pair.bodyA === player.body ? pair.bodyB : pair.bodyA;
+              const collision = pair.collision;
+              const normal = collision.normal;
 
-        // Check both directions since the normal may flip depending on order
-        if (Math.abs(normalY) > 0.5) {
-          const playerIsBodyA = pair.bodyA === player.body;
-          const isSurfaceBelow = playerIsBodyA ? (normalY < 0) : (normalY > 0);
+              // Determine if surface is mostly below player
+              const playerIsA = pair.bodyA === player.body;
+              let normalY = playerIsA ? normal.y : -normal.y;
 
-          if (isSurfaceBelow) {
-            onGround = true;
+              if (normalY < -0.5) {
+                  // Add to ground contacts
+                  if (!groundContacts.includes(other)) groundContacts.push(other);
+
+                  onGround = true;
+
+                  // Use the collision normal for ramp angle
+                  currentSurfaceAngle = Math.atan2(normal.x, -normal.y);
+              }
           }
-        }
-      }
-    });
+      });
   });
 
   this.matter.world.on('collisionend', (event) => {
-    event.pairs.forEach(pair => {
-      if (pair.bodyA === player.body || pair.bodyB === player.body) {
-        onGround = false;
-      }
-    });
+      event.pairs.forEach(pair => {
+          if (pair.bodyA === player.body || pair.bodyB === player.body) {
+              const other = pair.bodyA === player.body ? pair.bodyB : pair.bodyA;
+
+              // Remove from ground contacts
+              const index = groundContacts.indexOf(other);
+              if (index !== -1) groundContacts.splice(index, 1);
+
+              // Only unset onGround if no contacts below remain
+              onGround = groundContacts.length > 0;
+              if (!onGround) currentSurfaceAngle = 0;
+          }
+      });
   });
+
+
+
+
 
   // Camera
   this.cameras.main.startFollow(player, true, 0.1, 0.1);
@@ -84,16 +140,23 @@ function create() {
     right: Phaser.Input.Keyboard.KeyCodes.D,
     space: Phaser.Input.Keyboard.KeyCodes.SPACE,
     rotateLeft: Phaser.Input.Keyboard.KeyCodes.LEFT,
-    rotateRight: Phaser.Input.Keyboard.KeyCodes.RIGHT
+    rotateRight: Phaser.Input.Keyboard.KeyCodes.RIGHT,
+    six: Phaser.Input.Keyboard.KeyCodes.SIX,
+    seven: Phaser.Input.Keyboard.KeyCodes.SEVEN,
   });
 }
 
+let spinning = false;
+let targetRotation = 0;
+let hasSpun = false;  // Tracks if spin has been used in current jump
+
+
 function update() {
   const moveForce = 0.002;
-  const jumpForce = 0.035;
+  const jumpForce = 0.040;
   const rotateForce = 0.006;
 
-  const maxSpeed = 5
+  const maxSpeed = 8
 
   // Smooth horizontal movement
   let targetVelX = 0;
@@ -107,6 +170,56 @@ function update() {
   if (Phaser.Input.Keyboard.JustDown(input.space) && onGround) {
     player.applyForce({ x: 0, y: -jumpForce });
   }
+
+  // Start spin when both keys are down and not already spinning
+  if (!spinning && !onGround && !hasSpun && input.six.isDown && input.seven.isDown) {
+    spinning = true;
+    // Set target rotation: 360 degrees = 2 * PI radians
+    targetRotation = player.rotation + Math.PI * 2;
+    // Set angular velocity for the spin
+    player.setAngularVelocity(0.2); // adjust speed as desired
+  }
+
+  if (spinning) {
+    // Check if player has reached or passed the target rotation
+    if ((player.body.angularVelocity > 0 && player.rotation >= targetRotation) ||
+        (player.body.angularVelocity < 0 && player.rotation <= targetRotation)) {
+        spinning = false;
+        player.setAngularVelocity(0);
+        player.rotation = targetRotation % (Math.PI * 2); // wrap rotation
+    }
+  }
+
+  if (onGround) {
+    // Smoothly interpolate rotation to match surface angle
+    const ROTATION_SPEED = 0.1;
+    player.rotation = Phaser.Math.Angle.RotateTo(
+        player.rotation,
+        currentSurfaceAngle,
+        ROTATION_SPEED
+    );
+    player.setAngularVelocity(0);
+
+    // Stop angular velocity so it doesn't wobble
+    player.setAngularVelocity(0);
+  } else {
+      // Rotation in air (spins, etc.) remains unchanged
+  }
+
+
+  // Check if player fell below the screen
+  if (player.y > config.height + 200) { // 200px buffer
+    // Example: reset player to starting position
+    player.setPosition(100, window.innerHeight - 200);
+    player.setVelocity(0, 0);
+    player.setAngularVelocity(0);
+    player.rotation = 0;
+    
+    // Reset flags if needed
+    onGround = false;
+    hasSpun = false;
+    spinning = false;
+  }  
 
 }
 
